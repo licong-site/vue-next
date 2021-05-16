@@ -148,6 +148,13 @@ export type CreateAppFunction<HostElement> = (
 
 let uid = 0
 
+/**
+ * @params render 需要用到的渲染器
+ * @params hydrate 是否进行服务端渲染的配置
+ * 返回 createApp() 方法，createApp整体是一个闭包，根据不同的需求场景创建不同的app。
+ * 可动态配置的闭包是vue“自古以来”很常用的一个技巧，这样的实现灵活巧妙，非常适合多platform多case的设计，
+ * 让你可以通过一个入口管理多套逻辑且从对外暴露形式上看起来直观合理。
+ */
 export function createAppAPI<HostElement>(
   render: RootRenderFunction,
   hydrate?: RootHydrateFunction
@@ -158,11 +165,13 @@ export function createAppAPI<HostElement>(
       rootProps = null
     }
 
+    // 初始化 app 上下文对象
     const context = createAppContext()
     const installedPlugins = new Set()
 
     let isMounted = false
 
+    // app 内的方法支持链式调用，所以每个方法最后都会返回 app 对象
     const app: App = (context.app = {
       _uid: uid++,
       _component: rootComponent as ConcreteComponent,
@@ -184,6 +193,9 @@ export function createAppAPI<HostElement>(
         }
       },
 
+      /**
+       * 安装插件，如 路由、Vuex
+       */
       use(plugin: Plugin, ...options: any[]) {
         if (installedPlugins.has(plugin)) {
           __DEV__ && warn(`Plugin has already been applied to target app.`)
@@ -223,6 +235,9 @@ export function createAppAPI<HostElement>(
         return app
       },
 
+      /**
+       * 如果只有 name 一个参数，是 get 操作，返回用这个 name 注册的组件
+       */
       component(name: string, component?: Component): any {
         if (__DEV__) {
           validateComponentName(name, context.config)
@@ -237,6 +252,9 @@ export function createAppAPI<HostElement>(
         return app
       },
 
+      /**
+       * 全局指令的 get、set 方法
+       */
       directive(name: string, directive?: Directive) {
         if (__DEV__) {
           validateDirectiveName(name)
@@ -252,6 +270,9 @@ export function createAppAPI<HostElement>(
         return app
       },
 
+      /**
+       * 将Vue应用挂载到指定的dom节点，一个应用只能挂载一次。
+       */
       mount(
         rootContainer: HostElement,
         isHydrate?: boolean,
@@ -262,11 +283,12 @@ export function createAppAPI<HostElement>(
             rootComponent as ConcreteComponent,
             rootProps
           )
-          // store app context on the root VNode.
+
+          // 在根节点保存 app 上下文对象
           // this will be set on the root instance on initial mount.
           vnode.appContext = context
 
-          // HMR root reload
+          // HMR root reload 热更新时重新加载根节点
           if (__DEV__) {
             context.reload = () => {
               render(cloneVNode(vnode), rootContainer, isSVG)
@@ -274,11 +296,13 @@ export function createAppAPI<HostElement>(
           }
 
           if (isHydrate && hydrate) {
+            // 服务端渲染相关
             hydrate(vnode as VNode<Node, Element>, rootContainer as any)
           } else {
             render(vnode, rootContainer, isSVG)
           }
           isMounted = true
+          // 上下文中保存 app容器
           app._container = rootContainer
           // for devtools and telemetry
           ;(rootContainer as any).__vue_app__ = app
@@ -298,6 +322,9 @@ export function createAppAPI<HostElement>(
         }
       },
 
+      /**
+       * app卸载
+       */
       unmount() {
         if (isMounted) {
           render(null, app._container)
@@ -310,6 +337,9 @@ export function createAppAPI<HostElement>(
         }
       },
 
+      /**
+       * provide/inject 注入数据，key只能是string, 不支持 symbol
+       */
       provide(key, value) {
         if (__DEV__ && (key as string | symbol) in context.provides) {
           warn(
@@ -317,7 +347,8 @@ export function createAppAPI<HostElement>(
               `It will be overwritten with the new value.`
           )
         }
-        // TypeScript doesn't allow symbols as index type
+
+        // TypeScript 不允许使用 symbol 类型作为索引
         // https://github.com/Microsoft/TypeScript/issues/24587
         context.provides[key as string] = value
 

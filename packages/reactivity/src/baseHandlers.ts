@@ -43,6 +43,8 @@ const readonlyGet = /*#__PURE__*/ createGetter(true)
 const shallowReadonlyGet = /*#__PURE__*/ createGetter(true, true)
 
 const arrayInstrumentations: Record<string, Function> = {}
+
+// 数组查找的操作
 // instrument identity-sensitive Array methods to account for possible reactive
 // values
 ;(['includes', 'indexOf', 'lastIndexOf'] as const).forEach(key => {
@@ -53,6 +55,7 @@ const arrayInstrumentations: Record<string, Function> = {}
       track(arr, TrackOpTypes.GET, i + '')
     }
     // we run the method using the original args first (which may be reactive)
+    // 在响应式对象的原始对象上进行查找，查找的参数也有可能是响应式
     const res = method.apply(arr, args)
     if (res === -1 || res === false) {
       // if that didn't work, run it again using raw values.
@@ -62,6 +65,8 @@ const arrayInstrumentations: Record<string, Function> = {}
     }
   }
 })
+
+// 代理会导致数组长度 length 变化的方法，避免收集 length 属性依赖时发生死循环
 // instrument length-altering mutation methods to avoid length being tracked
 // which leads to infinite loops in some cases (#2137)
 ;(['push', 'pop', 'shift', 'unshift', 'splice'] as const).forEach(key => {
@@ -96,7 +101,7 @@ function createGetter(isReadonly = false, shallow = false) {
     }
 
     const targetIsArray = isArray(target)
-
+    // 数组方法
     if (!isReadonly && targetIsArray && hasOwn(arrayInstrumentations, key)) {
       return Reflect.get(arrayInstrumentations, key, receiver)
     }
@@ -107,6 +112,7 @@ function createGetter(isReadonly = false, shallow = false) {
       return res
     }
 
+    // 收集依赖
     if (!isReadonly) {
       track(target, TrackOpTypes.GET, key)
     }
@@ -194,6 +200,9 @@ function ownKeys(target: object): (string | symbol)[] {
   return Reflect.ownKeys(target)
 }
 
+/**
+ * Object | Array 的 proxyHandler
+ */
 export const mutableHandlers: ProxyHandler<object> = {
   get,
   set,

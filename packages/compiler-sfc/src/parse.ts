@@ -242,6 +242,7 @@ export function parse(
   }
 
   // parse CSS vars
+  // 解析css样式中使用的变量
   descriptor.cssVars = parseCssVars(descriptor)
   if (descriptor.cssVars.length) {
     warnExperimental(`v-bind() CSS variable injection`, 231)

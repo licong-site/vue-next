@@ -213,6 +213,9 @@ export function createTransformContext(
     helperString(name) {
       return `_${helperNameMap[context.helper(name)]}`
     },
+    /**
+     * 替换当前正在处理的节点
+     */
     replaceNode(node) {
       /* istanbul ignore if */
       if (__DEV__) {
@@ -312,7 +315,9 @@ export function createTransformContext(
 }
 
 export function transform(root: RootNode, options: TransformOptions) {
+  // 将编译配置选项存储在上下文对象
   const context = createTransformContext(root, options)
+  // 遍历节点，调用 nodeTransforms
   traverseNode(root, context)
   if (options.hoistStatic) {
     hoistStatic(root, context)
@@ -405,14 +410,19 @@ export function traverseChildren(
   }
 }
 
+/**
+ * 遍历所有的节点，调用 transform plugin
+ */
 export function traverseNode(
   node: RootNode | TemplateChildNode,
   context: TransformContext
 ) {
+  // 当前正在处理的节点
   context.currentNode = node
   // apply transform plugins
   const { nodeTransforms } = context
   const exitFns = []
+  // 在节点上调用所有的 nodeTransforms
   for (let i = 0; i < nodeTransforms.length; i++) {
     const onExit = nodeTransforms[i](node, context)
     if (onExit) {
@@ -468,6 +478,9 @@ export function traverseNode(
   }
 }
 
+/**
+ * 构建生成指令转换器
+ */
 export function createStructuralDirectiveTransform(
   name: string | RegExp,
   fn: StructuralDirectiveTransform

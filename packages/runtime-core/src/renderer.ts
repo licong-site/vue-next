@@ -400,10 +400,10 @@ export const setRef = (
 }
 
 /**
- * The createRenderer function accepts two generic arguments:
- * HostNode and HostElement, corresponding to Node and Element types in the
- * host environment. For example, for runtime-dom, HostNode would be the DOM
- * `Node` interface and HostElement would be the DOM `Element` interface.
+ * createRenderer 函数接收两个参数
+ * HostNode、HostElement 分别对应宿主环境中的 Node、Element。
+ * 例如，在 runtime-dom 中，HostNode 将是 DOM 中 `Node`的接口
+ * HostElement 将是 DOM `element` 的接口。
  *
  * Custom renderers can pass in the platform specific types like this:
  *
@@ -436,7 +436,7 @@ function baseCreateRenderer<
   HostElement = RendererElement
 >(options: RendererOptions<HostNode, HostElement>): Renderer<HostElement>
 
-// overload 2: with hydration
+// overload 2: with hydration 开启服务端渲染
 function baseCreateRenderer(
   options: RendererOptions<Node, Element>,
   createHydrationFns: typeof createHydrationFunctions
@@ -475,8 +475,12 @@ function baseCreateRenderer(
     insertStaticContent: hostInsertStaticContent
   } = options
 
-  // Note: functions inside this closure should use `const xxx = () => {}`
-  // style in order to prevent being inlined by minifiers.
+  /**
+   * 注意: 这个闭包内的所有函数都使用这个形式 `const xxx = () => {}` 定义，避免压缩的时候变成内联的
+   * in order to prevent being inlined by minifiers.
+   * n1 旧结点，n1 为null, 说明是结点第一次挂载 mounted
+   * n2 新结点
+   */
   const patch: PatchFn = (
     n1,
     n2,
@@ -489,6 +493,7 @@ function baseCreateRenderer(
     optimized = false
   ) => {
     // patching & not same type, unmount old tree
+    // 结点类型不同，卸载旧的结点
     if (n1 && !isSameVNodeType(n1, n2)) {
       anchor = getNextHostNode(n1)
       unmount(n1, parentComponent, parentSuspense, true)
@@ -2366,6 +2371,9 @@ function baseCreateRenderer(
     return hostNextSibling((vnode.anchor || vnode.el)!)
   }
 
+  /**
+   * app 根节点渲染函数
+   */
   const render: RootRenderFunction = (vnode, container, isSVG) => {
     if (vnode == null) {
       if (container._vnode) {

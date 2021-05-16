@@ -4,12 +4,15 @@ import { isArray, isObject, hasChanged } from '@vue/shared'
 import { reactive, isProxy, toRaw, isReactive } from './reactive'
 import { CollectionTypes } from './collectionHandlers'
 
+// unique symbols 用于常量和只读的静态属性上
+// https://www.tslang.cn/docs/release-notes/typescript-2.7.html
 declare const RefSymbol: unique symbol
 
 export interface Ref<T = any> {
   value: T
   /**
-   * Type differentiator only.
+   * Type differentiator only. 仅用作类型区分
+   * 需要在 .d.ts 中声明，但是不想在 IDE 中自动展示出来
    * We need this to be in public d.ts but don't want it to show up in IDE
    * autocomplete, so we use a private Symbol instead.
    */
@@ -27,9 +30,15 @@ export type ToRefs<T = any> = {
   [K in keyof T]: T[K] extends Ref ? T[K] : Ref<UnwrapRef<T[K]>>
 }
 
+/**
+ * 基础数据类型直接返回， 对象使用 reactive 处理
+ */
 const convert = <T extends unknown>(val: T): T =>
   isObject(val) ? reactive(val) : val
 
+/**
+ * 检查值是否为 ref 对象
+ */
 export function isRef<T>(r: Ref<T> | unknown): r is Ref<T>
 export function isRef(r: any): r is Ref {
   return Boolean(r && r.__v_isRef === true)
@@ -51,16 +60,23 @@ export function shallowRef(value?: unknown) {
   return createRef(value, true)
 }
 
+/**
+ * implemate Ref interface
+ * 重点核心代码
+ */
 class RefImpl<T> {
   private _value: T
 
+  // 判断是否是 Ref 对象
   public readonly __v_isRef = true
 
   constructor(private _rawValue: T, public readonly _shallow = false) {
+    // 基础类型直接返回， 对象使用 reactive 处理
     this._value = _shallow ? _rawValue : convert(_rawValue)
   }
 
   get value() {
+    // 收集依赖
     track(toRaw(this), TrackOpTypes.GET, 'value')
     return this._value
   }
@@ -69,6 +85,7 @@ class RefImpl<T> {
     if (hasChanged(toRaw(newVal), this._rawValue)) {
       this._rawValue = newVal
       this._value = this._shallow ? newVal : convert(newVal)
+      // 触发变更
       trigger(toRaw(this), TriggerOpTypes.SET, 'value', newVal)
     }
   }
@@ -85,6 +102,9 @@ export function triggerRef(ref: Ref) {
   trigger(toRaw(ref), TriggerOpTypes.SET, 'value', __DEV__ ? ref.value : void 0)
 }
 
+/**
+ * 返回 ref 内部的值， 比直接使用 `.value` 更加安全一些，不确定是否是 Ref 类型的时候使用
+ */
 export function unref<T>(ref: T): T extends Ref<infer V> ? V : T {
   return isRef(ref) ? (ref.value as any) : ref
 }
@@ -146,6 +166,9 @@ export function customRef<T>(factory: CustomRefFactory<T>): Ref<T> {
   return new CustomRefImpl(factory) as any
 }
 
+/**
+ * 将响应式对象转换为普通对象，其中结果对象的每个 property 都是指向原始对象相应 property 的 ref。
+ */
 export function toRefs<T extends object>(object: T): ToRefs<T> {
   if (__DEV__ && !isProxy(object)) {
     console.warn(`toRefs() expects a reactive object but received a plain one.`)

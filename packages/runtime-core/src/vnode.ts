@@ -186,22 +186,32 @@ export interface VNode<
 // can divide a template into nested blocks, and within each block the node
 // structure would be stable. This allows us to skip most children diffing
 // and only worry about the dynamic nodes (indicated by patch flags).
+/**
+ * 由于 v-if v-for 都很容易造成 node 结构动态变化
+ * 我们考虑把 v-if 的每一个分支和 v-for 的每一个fragment看成一个 block,
+ * 我们可以把模板拆分成 嵌套的 block，在每一个block的内部node结构是稳定的
+ * 这样我们可以跳过大多数子节点的 diff 过程，只需要考虑动态的节点，用 patchFlag 标志。
+ *
+ * blockStack 声明一个动态内容仓库栈结构，用于维护多个仓库之间的关系，方便进行仓库的激活、失活、恢复调度操作
+ */
 export const blockStack: (VNode[] | null)[] = []
+// 当前处于收集态的仓库
 let currentBlock: VNode[] | null = null
 
 /**
  * Open a block.
- * This must be called before `createBlock`. It cannot be part of `createBlock`
- * because the children of the block are evaluated before `createBlock` itself
- * is called. The generated code typically looks like this:
+ * 必须在 `createBlock` 之前调用。因为 `createBlock` 执行时子节点已经创建完毕, 已经无法再进行子代动态内容收集。
+ * 因此需要保证在子代节点创建之前，就开辟出对应的block收集仓库，再执行createBlock时，对应的children已创建且收集完毕
+ *
+ * The generated code typically looks like this:
  *
  * ```js
  * function render() {
  *   return (openBlock(),createBlock('div', null, [...]))
  * }
  * ```
- * disableTracking is true when creating a v-for fragment block, since a v-for
- * fragment always diffs its children.
+ *
+ * v-for 的 block 中 disableTracking为true，因为 v-for 总是要对所有子节点进行全量 diff
  *
  * @private
  */
@@ -209,6 +219,9 @@ export function openBlock(disableTracking = false) {
   blockStack.push((currentBlock = disableTracking ? null : []))
 }
 
+/**
+ * closeBlock 将失活的收集仓库出栈，并将当前激活仓库恢复为上一个
+ */
 export function closeBlock() {
   blockStack.pop()
   currentBlock = blockStack[blockStack.length - 1] || null
@@ -241,7 +254,8 @@ export function setBlockTracking(value: number) {
 }
 
 /**
- * Create a block root vnode. Takes the same exact arguments as `createVNode`.
+ * 创建 block 虚拟节点
+ * Takes the same exact arguments as `createVNode`.
  * A block root keeps track of dynamic nodes within the block in the
  * `dynamicChildren` array.
  *
@@ -260,14 +274,17 @@ export function createBlock(
     children,
     patchFlag,
     dynamicProps,
-    true /* isBlock: prevent a block from tracking itself */
+    true /* isBlock: 避免block将自身收集到仓库中  */
   )
+
   // save current block children on the block vnode
   vnode.dynamicChildren = currentBlock || (EMPTY_ARR as any)
+
   // close block
   closeBlock()
-  // a block is always going to be patched, so track it as a child of its
-  // parent block
+
+  // a block is always going to be patched, so track it as a child of its parent block
+  // block作为一个动态块状子区域需要被作为动态子节点收集到父级block对应的仓库中
   if (shouldTrack > 0 && currentBlock) {
     currentBlock.push(vnode)
   }
@@ -334,6 +351,15 @@ export const createVNode = (__DEV__
   ? createVNodeWithArgsTransform
   : _createVNode) as typeof _createVNode
 
+/**
+ * 创建 VNode
+ * @params type VNode 类型
+ * @params props 属性
+ * @params children 子节点
+ * @params patchFlag
+ * @params dynamicProps  动态子节点
+ * @params isBlockNode 是否创建block
+ */
 function _createVNode(
   type: VNodeTypes | ClassComponent | typeof NULL_DYNAMIC_COMPONENT,
   props: (Data & VNodeProps) | null = null,
@@ -360,7 +386,7 @@ function _createVNode(
     return cloned
   }
 
-  // class component normalization.
+  // class 组件处理
   if (isClassComponent(type)) {
     type = type.__vccOpts
   }
@@ -370,7 +396,7 @@ function _createVNode(
     type = convertLegacyComponent(type, currentRenderingInstance)
   }
 
-  // class & style normalization.
+  // 处理节点上的 class 和 style
   if (props) {
     // for reactive or proxy objects, we need to clone it to enable mutation.
     if (isProxy(props) || InternalObjectKey in props) {
@@ -390,7 +416,7 @@ function _createVNode(
     }
   }
 
-  // encode the vnode type information into a bitmap
+  // 根据 type 解析出 vnode 对应的 shapeFlag
   const shapeFlag = isString(type)
     ? ShapeFlags.ELEMENT
     : __FEATURE_SUSPENSE__ && isSuspense(type)
@@ -415,13 +441,14 @@ function _createVNode(
     )
   }
 
+  // 虚拟节点对象
   const vnode: VNode = {
     __v_isVNode: true,
     __v_skip: true,
     type,
     props,
     key: props && normalizeKey(props),
-    ref: props && normalizeRef(props),
+    ref: props && normalizeRef(props), // ref标准化，组件引用ref有三种形式：字符串、ref代理、回调函数
     scopeId: currentScopeId,
     slotScopeIds: null,
     children: null,
@@ -443,11 +470,12 @@ function _createVNode(
     appContext: null
   }
 
-  // validate key
+  // NaN 是无效的key
   if (__DEV__ && vnode.key !== vnode.key) {
     warn(`VNode created with invalid key (NaN). VNode type:`, vnode.type)
   }
 
+  // 处理子代节点
   normalizeChildren(vnode, children)
 
   // normalize suspense children
@@ -457,6 +485,7 @@ function _createVNode(
     vnode.ssFallback = fallback
   }
 
+  // 动态子代节点或子代block收集到父级block中
   if (
     shouldTrack > 0 &&
     // avoid a block node from tracking itself

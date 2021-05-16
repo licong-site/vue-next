@@ -30,7 +30,9 @@ export interface SchedulerJob {
 export type SchedulerCb = Function & { id?: number }
 export type SchedulerCbs = SchedulerCb | SchedulerCb[]
 
+// 正在执行队列中的任务
 let isFlushing = false
+// 即将执行队列中的任务
 let isFlushPending = false
 
 const queue: SchedulerJob[] = []
@@ -52,6 +54,9 @@ let currentPreFlushParentJob: SchedulerJob | null = null
 const RECURSION_LIMIT = 100
 type CountMap = Map<SchedulerJob | SchedulerCb, number>
 
+/**
+ * nextTick的回调方法，挂载在正在队列处理的 promise.then 上，相当于一个微任务
+ */
 export function nextTick(
   this: ComponentPublicInstance | void,
   fn?: () => void
@@ -79,6 +84,9 @@ function findInsertionIndex(job: SchedulerJob) {
   return start
 }
 
+/**
+ * 将 effect 推入任务队列
+ */
 export function queueJob(job: SchedulerJob) {
   // the dedupe search uses the startIndex argument of Array.includes()
   // by default the search index includes the current job that is being run
@@ -104,6 +112,9 @@ export function queueJob(job: SchedulerJob) {
   }
 }
 
+/**
+ * 有新的任务进入，尝试开始执行任务队列的任务，如果是空闲状态
+ */
 function queueFlush() {
   if (!isFlushing && !isFlushPending) {
     isFlushPending = true
@@ -143,6 +154,9 @@ function queueCb(
   queueFlush()
 }
 
+/**
+ * watch、watchEffect 接口会调用
+ */
 export function queuePreFlushCb(cb: SchedulerCb) {
   queueCb(cb, activePreFlushCbs, pendingPreFlushCbs, preFlushIndex)
 }
@@ -183,6 +197,9 @@ export function flushPreFlushCbs(
   }
 }
 
+/**
+ * after flush
+ */
 export function flushPostFlushCbs(seen?: CountMap) {
   if (pendingPostFlushCbs.length) {
     const deduped = [...new Set(pendingPostFlushCbs)]
@@ -222,6 +239,9 @@ export function flushPostFlushCbs(seen?: CountMap) {
 const getId = (job: SchedulerJob | SchedulerCb) =>
   job.id == null ? Infinity : job.id
 
+/**
+ * 执行任务队列中的任务
+ */
 function flushJobs(seen?: CountMap) {
   isFlushPending = false
   isFlushing = true
@@ -231,13 +251,9 @@ function flushJobs(seen?: CountMap) {
 
   flushPreFlushCbs(seen)
 
-  // Sort queue before flush.
-  // This ensures that:
-  // 1. Components are updated from parent to child. (because parent is always
-  //    created before the child so its render effect will have smaller
-  //    priority number)
-  // 2. If a component is unmounted during a parent component's update,
-  //    its update can be skipped.
+  // flush 之前对任务进行排序，确保：
+  // 1. 组件更新是从父组件到子组件，因为父组件总是先于子组件创建，所以父组件先渲染造成的副作用会比较小
+  // 2. 当更新父组件时，如果子组件是 unmounted 的状态，就跳过子组件
   queue.sort((a, b) => getId(a) - getId(b))
 
   try {

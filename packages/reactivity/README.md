@@ -14,6 +14,7 @@ The implementation of this module is inspired by the following prior art in the 
 - [nx-js/observer-util](https://github.com/nx-js/observer-util)
 - [salesforce/observable-membrane](https://github.com/salesforce/observable-membrane)
 
-## Caveats
+## Caveats 注意事项
 
 - Built-in objects are not observed except for `Array`, `Map`, `WeakMap`, `Set` and `WeakSet`.
+- 除了 `Array`, `Map`, `WeakMap`, `Set` and `WeakSet`， 其他的javascript 内置对象都是不能监听的。

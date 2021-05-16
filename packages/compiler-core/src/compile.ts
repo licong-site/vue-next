@@ -27,6 +27,7 @@ export function getBaseTransformPreset(
   prefixIdentifiers?: boolean
 ): TransformPreset {
   return [
+    // nodeTransforms
     [
       transformOnce,
       transformIf,
@@ -46,6 +47,7 @@ export function getBaseTransformPreset(
       trackSlotScopes,
       transformText
     ],
+    // directiveTransforms
     {
       on: transformOn,
       bind: transformBind,
@@ -56,6 +58,10 @@ export function getBaseTransformPreset(
 
 // we name it `baseCompile` so that higher order compilers like
 // @vue/compiler-dom can export `compile` while re-exporting everything else.
+/**
+ * 是谁在调用 baseCompile ，什么时候调用，什么参数 ？？？
+ * parser -> transform -> generate
+ */
 export function baseCompile(
   template: string | RootNode,
   options: CompilerOptions = {}

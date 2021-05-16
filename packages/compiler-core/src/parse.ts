@@ -100,6 +100,9 @@ export interface ParserContext {
   onWarn: NonNullable<ErrorHandlingOptions['onWarn']>
 }
 
+/**
+ * 通过正则匹配进行解析
+ */
 export function baseParse(
   content: string,
   options: ParserOptions = {}

@@ -16,12 +16,16 @@ import { PatchFlags, isString, isSymbol } from '@vue/shared'
 import { isSlotOutlet } from '../utils'
 import { CREATE_BLOCK, CREATE_VNODE, OPEN_BLOCK } from '../runtimeHelpers'
 
+/**
+ * 静态节点提升
+ */
 export function hoistStatic(root: RootNode, context: TransformContext) {
   walk(
     root,
     context,
     // Root node is unfortunately non-hoistable due to potential parent
     // fallthrough attributes.
+    // 由于潜在的父级直通属性，根节点不可提升
     isSingleElementRoot(root, root.children[0])
   )
 }
@@ -46,7 +50,7 @@ function walk(
   let hasHoistedNode = false
   // Some transforms, e.g. transformAssetUrls from @vue/compiler-sfc, replaces
   // static bindings with expressions. These expressions are guaranteed to be
-  // constant so they are still eligible for hoisting, but they are only
+  // constant so they are still eligible(合格) for hoisting, but they are only
   // available at runtime and therefore cannot be evaluated ahead of time.
   // This is only a concern for pre-stringification (via transformHoist by
   // @vue/compiler-dom), but doing it here allows us to perform only one full

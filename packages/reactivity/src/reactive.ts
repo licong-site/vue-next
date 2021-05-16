@@ -27,11 +27,19 @@ export interface Target {
   [ReactiveFlags.RAW]?: any
 }
 
+/**
+ * 缓存处理过的响应式对象
+ */
 export const reactiveMap = new WeakMap<Target, any>()
 export const shallowReactiveMap = new WeakMap<Target, any>()
 export const readonlyMap = new WeakMap<Target, any>()
 export const shallowReadonlyMap = new WeakMap<Target, any>()
 
+/**
+ * 0 INVALID: __v_skip 为 true， 不可扩展
+ * 1 COMMON: 对象或数组
+ * 2 COLLECT: map | set | weakmap | weakset
+ */
 const enum TargetType {
   INVALID = 0,
   COMMON = 1,
@@ -53,6 +61,9 @@ function targetTypeMap(rawType: string) {
   }
 }
 
+/**
+ * target 对象是否可以被监听，设置 target.__v_skip = true 或者 不可扩展的对象，不能被 observed
+ */
 function getTargetType(value: Target) {
   return value[ReactiveFlags.SKIP] || !Object.isExtensible(value)
     ? TargetType.INVALID
@@ -63,15 +74,13 @@ function getTargetType(value: Target) {
 export type UnwrapNestedRefs<T> = T extends Ref ? T : UnwrapRef<T>
 
 /**
- * Creates a reactive copy of the original object.
+ * 为原始对象创建一个响应式副本
  *
- * The reactive conversion is "deep"—it affects all nested properties. In the
- * ES2015 Proxy based implementation, the returned proxy is **not** equal to the
- * original object. It is recommended to work exclusively with the reactive
- * proxy and avoid relying on the original object.
+ * 响应式对象是“deep”的, 会影响所有嵌套的属性。
+ * 是基于 ES2015 Proxy 实现的，返回的 proxy代理对象不等于原始对象。
+ * 推荐使用的时候直接使用 proxy 代理对象，避免依赖原始对象。
  *
- * A reactive object also automatically unwraps refs contained in it, so you
- * don't need to use `.value` when accessing and mutating their value:
+ * reactive 对象可以自动拆箱内部包含的 ref 对象，获取和改变ref值的时候不需要手动 `.value`
  *
  * ```js
  * const count = ref(0)
@@ -100,6 +109,7 @@ export function reactive(target: object) {
 }
 
 /**
+ * 返回 target 对象的一个浅响应式副本，只有第一层属性是响应式的
  * Return a shallowly-reactive copy of the original object, where only the root
  * level properties are reactive. It also does not auto-unwrap refs (even at the
  * root level).
@@ -170,6 +180,9 @@ export function shallowReadonly<T extends object>(
   )
 }
 
+/**
+ * 创建响应式对象
+ */
 function createReactiveObject(
   target: Target,
   isReadonly: boolean,
@@ -183,7 +196,8 @@ function createReactiveObject(
     }
     return target
   }
-  // target is already a Proxy, return it.
+
+  // target 是proxy的话直接返回target
   // exception: calling readonly() on a reactive object
   if (
     target[ReactiveFlags.RAW] &&
@@ -191,12 +205,14 @@ function createReactiveObject(
   ) {
     return target
   }
-  // target already has corresponding Proxy
+
+  // target 已经有了对应的 proxy 对象
   const existingProxy = proxyMap.get(target)
   if (existingProxy) {
     return existingProxy
   }
-  // only a whitelist of value types can be observed.
+
+  // target.__v_skip = true 或 不可扩展 的对象是不能被观察监听的
   const targetType = getTargetType(target)
   if (targetType === TargetType.INVALID) {
     return target
@@ -224,6 +240,10 @@ export function isProxy(value: unknown): boolean {
   return isReactive(value) || isReadonly(value)
 }
 
+/**
+ * 访问代理的原始对象
+ * 可用于临时读取数据而无需承担访问、跟踪的开销
+ */
 export function toRaw<T>(observed: T): T {
   return (
     (observed && toRaw((observed as Target)[ReactiveFlags.RAW])) || observed

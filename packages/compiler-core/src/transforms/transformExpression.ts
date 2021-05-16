@@ -197,12 +197,14 @@ export function processExpression(
   const bailConstant = rawExp.indexOf(`(`) > -1 || rawExp.indexOf('.') > 0
 
   if (isSimpleIdentifier(rawExp)) {
+    // 直接绑定的是变量
     const isScopeVarReference = context.identifiers[rawExp]
     const isAllowedGlobal = isGloballyWhitelisted(rawExp)
     const isLiteral = isLiteralWhitelisted(rawExp)
     if (!asParams && !isScopeVarReference && !isAllowedGlobal && !isLiteral) {
       // const bindings exposed from setup can be skipped for patching but
       // cannot be hoisted to module scope
+      // 绑定的 const 常量可以跳过 patch，但是不能提升到 module scope
       if (bindingMetadata[node.content] === BindingTypes.SETUP_CONST) {
         node.constType = ConstantTypes.CAN_SKIP_PATCH
       }
