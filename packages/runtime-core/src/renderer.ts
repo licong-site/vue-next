@@ -104,6 +104,9 @@ export type RootRenderFunction<HostElement = RendererElement> = (
   isSVG?: boolean
 ) => void
 
+/**
+ * RendererOptions 接口的实现： @vue/runtime-dom/nodeOps.ts, @vue/runtime-dom/patchProp.ts
+ */
 export interface RendererOptions<
   HostNode = RendererNode,
   HostElement = RendererElement
@@ -493,7 +496,7 @@ function baseCreateRenderer(
     optimized = false
   ) => {
     // patching & not same type, unmount old tree
-    // 结点类型不同，卸载旧的结点
+    // 结点类型或key不同，卸载旧的结点
     if (n1 && !isSameVNodeType(n1, n2)) {
       anchor = getNextHostNode(n1)
       unmount(n1, parentComponent, parentSuspense, true)
@@ -597,12 +600,14 @@ function baseCreateRenderer(
 
   const processText: ProcessTextOrCommentFn = (n1, n2, container, anchor) => {
     if (n1 == null) {
+      // 之前不存的话，直接 insert
       hostInsert(
         (n2.el = hostCreateText(n2.children as string)),
         container,
         anchor
       )
     } else {
+      // 之前有节点的话，去设置 节点 的 text
       const el = (n2.el = n1.el!)
       if (n2.children !== n1.children) {
         hostSetText(el, n2.children as string)
@@ -1682,11 +1687,12 @@ function baseCreateRenderer(
     const c2 = n2.children
 
     const { patchFlag, shapeFlag } = n2
-    // fast path
+    // 如果节点有 patchFlag ，先用 patchFlag 进行 dom diff
     if (patchFlag > 0) {
       if (patchFlag & PatchFlags.KEYED_FRAGMENT) {
         // this could be either fully-keyed or mixed (some keyed some not)
         // presence of patchFlag means children are guaranteed to be arrays
+        // children中有带有key的节点的fragment
         patchKeyedChildren(
           c1 as VNode[],
           c2 as VNodeArrayChildren,
@@ -1700,7 +1706,7 @@ function baseCreateRenderer(
         )
         return
       } else if (patchFlag & PatchFlags.UNKEYED_FRAGMENT) {
-        // unkeyed
+        // 没有 children 设置 key
         patchUnkeyedChildren(
           c1 as VNode[],
           c2 as VNodeArrayChildren,
@@ -1802,7 +1808,7 @@ function baseCreateRenderer(
       )
     }
     if (oldLength > newLength) {
-      // remove old
+      // remove old 旧结点比新结点数量多时，移除多余的旧结点
       unmountChildren(
         c1,
         parentComponent,
@@ -1812,7 +1818,7 @@ function baseCreateRenderer(
         commonLength
       )
     } else {
-      // mount new
+      // mount new 新结点比旧结点数量多时，在后面添加新的结点
       mountChildren(
         c2,
         container,
@@ -1827,7 +1833,11 @@ function baseCreateRenderer(
     }
   }
 
-  // can be all-keyed or mixed
+  /**
+   * ！！！ DOM diff 算法
+   * can be all-keyed or mixed
+   * 所有的子节点都设置了key，或者部分有设置 key
+   */
   const patchKeyedChildren = (
     c1: VNode[],
     c2: VNodeArrayChildren,
@@ -1844,7 +1854,7 @@ function baseCreateRenderer(
     let e1 = c1.length - 1 // prev ending index
     let e2 = l2 - 1 // next ending index
 
-    // 1. sync from start
+    // 1. sync from start 从起始下标开始
     // (a b) c
     // (a b) d e
     while (i <= e1 && i <= e2) {
@@ -1853,6 +1863,7 @@ function baseCreateRenderer(
         ? cloneIfMounted(c2[i] as VNode)
         : normalizeVNode(c2[i]))
       if (isSameVNodeType(n1, n2)) {
+        // 判断 n1, n2 的节点类型、key 是否相同
         patch(
           n1,
           n2,
@@ -1870,7 +1881,7 @@ function baseCreateRenderer(
       i++
     }
 
-    // 2. sync from end
+    // 2. sync from end 从末尾开始
     // a (b c)
     // d e (b c)
     while (i <= e1 && i <= e2) {
@@ -1909,6 +1920,7 @@ function baseCreateRenderer(
         const nextPos = e2 + 1
         const anchor = nextPos < l2 ? (c2[nextPos] as VNode).el : parentAnchor
         while (i <= e2) {
+          // 把节点 c 挂载到父节点上 或 插入 a 节点之前
           patch(
             null,
             (c2[i] = optimized
